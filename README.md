@@ -1,0 +1,2 @@
+# ArchiveResourceManager
+A small java library for storing data in a zip files under the assumptions that A) you want to use a single archive to transfer data that would normally exist in multiple files and B) that the amount of data exxceeds the amount of RAM available on your computer and C) that you may want to manually edit your data using only common software that is freely available for all desktop computers.

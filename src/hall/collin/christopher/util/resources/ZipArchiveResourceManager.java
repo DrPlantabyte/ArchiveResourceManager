@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  */
 public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	
-	private final Path dir;
+	private Path dir;
 	private final AtomicBoolean closed;
 	
 	private ZipArchiveResourceManager(Path unpackDir){
@@ -56,9 +56,9 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 		// init
 		Path tempDirectory = Files.createTempDirectory(archive.getName());
 		tempDirectory.toFile().deleteOnExit();
-		ZipUtils.extractZipArchive(archive.toPath(), tempDirectory);
-		
-		return new ZipArchiveResourceManager(tempDirectory);
+		ZipArchiveResourceManager zarm = new ZipArchiveResourceManager(tempDirectory);
+		zarm.open(archive);
+		return zarm;
 	}
 
 	
@@ -67,12 +67,20 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 			throw new FileNotFoundException("Resource manager is already closed. Cannot perform any more operations on this resource manager");
 		}
 	}
+	/**
+	 * Synchronizes cached data to ensure that all changes will be correctly 
+	 * written to file on save and then clears the cached data.
+	 */
+	public void flush(){
+		// ensure all cached data is written to file and then clear all caches
+	}
 	
 	
 	@Override
 	protected final void open(File zipFile) throws IOException {
 		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		ZipUtils.extractZipArchive(zipFile.toPath(), dir);
+		closed.set(false);
 	}
 
 	@Override

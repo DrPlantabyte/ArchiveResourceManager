@@ -23,7 +23,9 @@
  */
 package hall.collin.christopher.util.resources;
 
+import hall.collin.christopher.util.JSONConverter;
 import java.awt.image.BufferedImage;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,21 +42,28 @@ import javax.json.JsonWriter;
  * folder structure that is automatically zipped/unzipped for convenience.
  * @author CCHall <a href="mailto:hallch20@msu.edu">hallch20@msu.edu</a>
  */
-public abstract class ArchiveResourceManager {
+public abstract class ArchiveResourceManager implements Closeable{
 	
 	/**
 	 * Opens a zip archive and prepares it for use as a data store.
-	 * @param zipFile A data store file
+	 * @param archiveFile A data store file
 	 * @throws IOException Thrown if there was a problem opening the file.
 	 */
-	public abstract void open(File zipFile) throws IOException;
+	protected abstract void open(File archiveFile) throws IOException;
 	/**
 	 * Packages all of the data stored in this object and saves it in a zip 
 	 * archive (not necessarily .zip file extension)
-	 * @param zipFile The file to save the data
+	 * @param archiveFile The file to save the data
 	 * @throws IOException Thrown if there was a problem writing to the file.
 	 */
-	public abstract void save(File zipFile) throws IOException;
+	public abstract void save(File archiveFile) throws IOException;
+	
+	/**
+	 * IMPLEMENTATIONS ARE NOT REQUIRED TO SAVE CHANGES ON CLOSE! This method 
+	 * closes and cleans-up the archive.
+	 * @throws IOException Thrown if there was a problem closing this object
+	 */
+	public abstract void close() throws IOException;
 	/**
 	 * Gets a stream to read data from a file (or other data container) in the 
 	 * data store archive.

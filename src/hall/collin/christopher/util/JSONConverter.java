@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package hall.collin.christopher.util.resources;
+package hall.collin.christopher.util;
 
 import java.io.StringReader;
 import java.io.StringWriter;

@@ -34,8 +34,12 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 /**
@@ -44,7 +48,7 @@ import java.util.function.Supplier;
  */
 public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	
-	private Path dir;
+	private final Path dir;
 	private final AtomicBoolean closed;
 	
 	private ZipArchiveResourceManager(Path unpackDir){
@@ -67,16 +71,16 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 			throw new FileNotFoundException("Resource manager is already closed. Cannot perform any more operations on this resource manager");
 		}
 	}
-	/**
-	 * Synchronizes cached data to ensure that all changes will be correctly 
-	 * written to file on save and then clears the cached data.
-	 */
-	public void flush(){
-		// ensure all cached data is written to file and then clear all caches
+	
+	private Path getFilepathForLocator(Path locatorPath){
+		return Paths.get(dir.toString(), locatorPath.toString());
 	}
 	
-	
-	@Override
+	/**
+	 * Opens a zip archive and prepares it for use as a data store.
+	 * @param zipFile A data store file
+	 * @throws IOException Thrown if there was a problem opening the file.
+	 */
 	protected final void open(File zipFile) throws IOException {
 		checkValid();
 		ZipUtils.extractZipArchive(zipFile.toPath(), dir);
@@ -84,33 +88,29 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	}
 
 	@Override
-	public void save(File zipFile) throws IOException {
-		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-	}
-
-	@Override
 	public InputStream getInputStream(Path locatorPath) throws IOException {
 		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		return Files.newInputStream(getFilepathForLocator(locatorPath));
 	}
 
 	@Override
 	public OutputStream getOutputStream(Path locatorPath) throws IOException {
 		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		return Files.newOutputStream(getFilepathForLocator(locatorPath));
 	}
 
 	@Override
 	public boolean exists(Path locatorPath) throws IOException {
 		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		return Files.exists(getFilepathForLocator(locatorPath));
 	}
 
 	@Override
 	public String getProperty(Path locatorPath, String propertyName, String defaultValue) throws IOException {
 		checkValid();
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		Properties propertiesFile = new Properties();
+		propertiesFile.load(getInputStream(locatorPath));
+		propertiesFile.get
 	}
 
 	@Override
@@ -171,5 +171,22 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 		// then delete folders
 		Files.deleteIfExists(dir);
 	}
+
 	
+	/**
+	 * Synchronizes cached data to ensure that all changes will be correctly 
+	 * written to file on save and then clears the cached data.
+	 */
+	public void flush(){
+		// ensure all cached data is written to file and then clear all caches
+		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+	}
+	
+	
+	@Override
+	public void save(File zipFile) throws IOException {
+		checkValid();
+		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+	}
+
 }

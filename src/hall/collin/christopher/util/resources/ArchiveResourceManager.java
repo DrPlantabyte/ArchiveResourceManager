@@ -33,6 +33,8 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.json.Json;
 import javax.json.JsonReader;
 import javax.json.JsonWriter;
@@ -44,12 +46,10 @@ import javax.json.JsonWriter;
  */
 public abstract class ArchiveResourceManager implements Closeable{
 	
-	/**
-	 * Opens a zip archive and prepares it for use as a data store.
-	 * @param archiveFile A data store file
-	 * @throws IOException Thrown if there was a problem opening the file.
-	 */
-	protected abstract void open(File archiveFile) throws IOException;
+	
+	/** lock provided so that all subclasses can coordinate I/O in a 
+	 * multi-threaded environment */
+	protected final ReadWriteLock ioLock = new ReentrantReadWriteLock();
 	/**
 	 * Packages all of the data stored in this object and saves it in a zip 
 	 * archive (not necessarily .zip file extension)
@@ -63,6 +63,7 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * closes and cleans-up the archive.
 	 * @throws IOException Thrown if there was a problem closing this object
 	 */
+	@Override
 	public abstract void close() throws IOException;
 	/**
 	 * Gets a stream to read data from a file (or other data container) in the 
@@ -74,7 +75,7 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * @throws IOException Thrown if there was a problem opening the source of 
 	 * the input stream
 	 */
-	public abstract InputStream getInputStream(Path locatorPath) throws IOException;
+	protected abstract InputStream getInputStream(Path locatorPath) throws IOException;
 	/**
 	 * Gets a stream to write data to a file (or other data container) in the 
 	 * data store archive.
@@ -84,7 +85,7 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * @throws IOException Thrown if there was a problem opening the source of 
 	 * the input stream
 	 */
-	public abstract OutputStream getOutputStream(Path locatorPath) throws IOException;
+	protected abstract OutputStream getOutputStream(Path locatorPath) throws IOException;
 	/**
 	 * Checks whether a resource exists.
 	 * @param locatorPath The locator (path within the zip archive) of the 
@@ -136,17 +137,22 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * @throws NumberFormatException Thrown if the property stored is not a valid number.
 	 */
 	public Number getNumber(Path locatorPath, String propertyName, Number defaultValue) throws IOException, NumberFormatException{
-		String text = getProperty(locatorPath,propertyName,defaultValue.toString());
-		if(text.equals("inf")){
-			return Double.POSITIVE_INFINITY;
-		} else if(text.equals("-inf")){
-			return Double.NEGATIVE_INFINITY;
-		} else if(text.equals("nan") || text.equals("NaN")){
-			return Double.NaN;
-		} else if(text.contains(".")){
-			return Double.parseDouble(text);
-		} else {
-			return Long.parseLong(text);
+		ioLock.readLock().lock();
+		try{
+			String text = getProperty(locatorPath,propertyName,defaultValue.toString());
+			if(text.equals("inf")){
+				return Double.POSITIVE_INFINITY;
+			} else if(text.equals("-inf")){
+				return Double.NEGATIVE_INFINITY;
+			} else if(text.equals("nan") || text.equals("NaN")){
+				return Double.NaN;
+			} else if(text.contains(".")){
+				return Double.parseDouble(text);
+			} else {
+				return Long.parseLong(text);
+			}
+		}finally{
+			ioLock.readLock().unlock();
 		}
 	}
 	/**
@@ -159,7 +165,12 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * @throws IOException Thrown if there was a problem opening the location path
 	 */
 	public void setNumber(Path locatorPath, String propertyName, Number newValue) throws IOException{
-		setProperty(locatorPath,propertyName,newValue.toString());
+		ioLock.writeLock().lock();
+		try{
+			setProperty(locatorPath,propertyName,newValue.toString());
+		}finally{
+			ioLock.writeLock().unlock();
+		}
 	}
 	/**
 	 * Like {@link #hasProperty(java.nio.file.Path, java.lang.String) hasProperty(...)},
@@ -172,7 +183,12 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 * @throws IOException Thrown if there was a problem opening the location path
 	 */
 	public boolean hasNumber(Path locatorPath, String propertyName) throws IOException{
-		return hasProperty(locatorPath,propertyName);
+		ioLock.readLock().lock();
+		try{
+			return hasProperty(locatorPath,propertyName);
+		}finally{
+			ioLock.readLock().unlock();
+		}
 	}
 	/**
 	 * Gets a stored image.

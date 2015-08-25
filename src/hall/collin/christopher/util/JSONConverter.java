@@ -25,6 +25,8 @@ package hall.collin.christopher.util;
 
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +54,8 @@ public abstract class JSONConverter {
 	public static final String TIME_SUFFIX = "@ISOtime";
 	/** Suffix appended to names of variable storing binary data (in base64 encoding) */
 	public static final String BINARY_SUFFIX = "@base64";
+	/** Suffix appended to names of variable storing JSONSerializable implementations */
+	public static final String JSONSERIAL_SUFFIX = "@JSONSerializable";
 	
 	/** 
 	 * Converts String from JSON into a java.time instant. This method is not 
@@ -138,6 +142,8 @@ public abstract class JSONConverter {
 						json.add(name, ((Boolean) value));
 					} else if (value instanceof CharSequence) {
 						json.add(name, ((CharSequence) value).toString());
+					} else if(value instanceof JSONSerializable) {
+						json.add(name.concat(JSONSERIAL_SUFFIX),constructJSONSerializable((JSONSerializable)value));
 					} else {
 						throw new IllegalArgumentException("Cannot store object of type " + value.getClass().getCanonicalName());
 					}
@@ -181,6 +187,8 @@ public abstract class JSONConverter {
 					array.add(constructJSONObject((Map)o));
 				} else if(o instanceof List) {
 					array.add(constructJSONArray((List)o));
+				} else if(o instanceof JSONSerializable) {
+					array.add(constructJSONSerializable((JSONSerializable)o));
 				} else {
 					throw new IllegalArgumentException("Cannot store object of type " + o.getClass().getCanonicalName());
 				}
@@ -215,6 +223,15 @@ public abstract class JSONConverter {
 				String name = e.getKey();
 				if(name.endsWith(TIME_SUFFIX) && e.getValue().getValueType() != ValueType.ARRAY){
 					map.put(name.substring(0, name.lastIndexOf(TIME_SUFFIX)), parseAsTime(json.getString(name)));
+				} else if(name.endsWith(JSONSERIAL_SUFFIX) && e.getValue().getValueType() != ValueType.ARRAY){
+					try{
+						map.put(name.substring(0, name.lastIndexOf(JSONSERIAL_SUFFIX)), parseAsJSONSerial(json.getJsonObject(name)));
+					}catch(ClassNotFoundException | NoSuchMethodException | 
+							InstantiationException | IllegalAccessException | 
+							IllegalArgumentException | InvocationTargetException |
+							SecurityException ex){
+						throw new IllegalArgumentException("Failed to create a new instance of a JSONSerializable class using reflection",ex);
+					}
 				} else if(name.endsWith(BINARY_SUFFIX) && e.getValue().getValueType() != ValueType.ARRAY){
 					map.put(name.substring(0, name.lastIndexOf(BINARY_SUFFIX)), parseAsByteArray(json.getString(name)));
 				} else {
@@ -241,6 +258,15 @@ public abstract class JSONConverter {
 							List<Object> list = new ArrayList<>(json.getJsonArray(name).size());
 							if(name.endsWith(TIME_SUFFIX)){
 								fillListWithTimes(list,json.getJsonArray(name));
+							} else if(name.endsWith(JSONSERIAL_SUFFIX)){
+								try{
+									fillListWithJSONSerialiables(list,json.getJsonArray(name));
+								}catch(ClassNotFoundException | NoSuchMethodException | 
+										InstantiationException | IllegalAccessException | 
+										IllegalArgumentException | InvocationTargetException |
+										SecurityException ex){
+									throw new IllegalArgumentException("Failed to create a new instance of a JSONSerializable class using reflection",ex);
+								}
 							} else if(name.endsWith(BINARY_SUFFIX)){
 								fillListWithByteArrays(list,json.getJsonArray(name));
 							} else {
@@ -339,7 +365,6 @@ public abstract class JSONConverter {
 		return out.toString();
 	}
 	
-
 	
 	/**
 	 * Testing use only
@@ -405,5 +430,35 @@ public abstract class JSONConverter {
 		
 		System.out.println("Pass == "+json1.equals(json2));
 		
+	}
+
+	private static JsonValue constructJSONSerializable(JSONSerializable jsonSerializable) {
+		JsonObjectBuilder json = Json.createObjectBuilder();
+		json.add("class", jsonSerializable.getClass().getCanonicalName());
+		json.add("value", jsonSerializable.toJSON());
+		return json.build();
+	}
+
+	private static Object parseAsJSONSerial(JsonObject jsonObject) 
+			throws ClassNotFoundException, NoSuchMethodException, 
+			InstantiationException, IllegalAccessException, 
+			IllegalArgumentException, InvocationTargetException,
+			SecurityException {
+		String className = jsonObject.getString("class");
+		JsonValue value = jsonObject.get("value");
+		Class z = Class.forName(className);
+		Constructor constructor = z.getConstructor(JsonValue.class);
+		Object instance = constructor.newInstance(value);
+		return instance;
+	}
+
+	private static void fillListWithJSONSerialiables(List<Object> list, JsonArray jsonArray) 
+			throws ClassNotFoundException, NoSuchMethodException, 
+			InstantiationException, IllegalAccessException, 
+			IllegalArgumentException, InvocationTargetException,
+			SecurityException {
+		for(int i = 0; i < jsonArray.size(); i++){
+			list.add(parseAsJSONSerial(jsonArray.getJsonObject(i)));
+		}
 	}
 }

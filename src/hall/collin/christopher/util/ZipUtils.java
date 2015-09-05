@@ -27,13 +27,17 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 /**
  *
@@ -82,5 +86,49 @@ public abstract class ZipUtils {
 		} catch (IOException ex) {
 			Logger.getLogger(ZipUtils.class.getName()).log(Level.SEVERE, "Error while extracting zip file " + zipFile, ex);
 		}
+	}
+
+	public static void createZipArchive(final Path sourceDir, final Path destFile) throws IOException{
+		final byte[] buffer = new byte[4096]; // 4K is natural block size on most systems
+		
+		final ZipOutputStream zout = new ZipOutputStream(Files.newOutputStream(destFile));
+		
+		Files.walkFileTree(sourceDir, new FileVisitor<Path>(){
+
+			@Override
+			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+				return FileVisitResult.CONTINUE;
+			}
+
+			@Override
+			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+				String zipName = sourceDir.relativize(file).toString();
+				if(File.separator.equals("/") == false){
+					zipName = zipName.replace(File.separator, "/");
+				}
+				ZipEntry e = new ZipEntry(zipName);
+				FileInputStream in = new FileInputStream(file.toFile());
+				zout.putNextEntry(e);
+				int len;
+				while ((len = in.read(buffer)) > 0) {
+					zout.write(buffer, 0, len);
+				}
+				zout.closeEntry();
+				in.close();
+				return FileVisitResult.CONTINUE;
+			}
+
+			@Override
+			public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+				return FileVisitResult.CONTINUE;
+			}
+
+			@Override
+			public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+				return FileVisitResult.CONTINUE;
+			}
+		});
+		
+		zout.close();
 	}
 }

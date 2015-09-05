@@ -23,40 +23,30 @@
  */
 package hall.collin.christopher.util.resources;
 
-import hall.collin.christopher.util.JSONConverter;
 import java.awt.image.BufferedImage;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import javax.json.Json;
-import javax.json.JsonReader;
-import javax.json.JsonWriter;
+import java.util.function.Supplier;
+import org.w3c.dom.Document;
 
 /**
  * This interface provides the API for storing and retrieving data using a 
  * folder structure that is automatically zipped/unzipped for convenience.
  * @author CCHall <a href="mailto:hallch20@msu.edu">hallch20@msu.edu</a>
  */
-public abstract class ArchiveResourceManager implements Closeable{
+public abstract class ArchiveResourceManager implements Closeable {
 	
 	
-	/** lock provided so that all subclasses can coordinate I/O in a 
-	 * multi-threaded environment */
-	protected final ReadWriteLock ioLock = new ReentrantReadWriteLock();
 	/**
 	 * Packages all of the data stored in this object and saves it in a zip 
 	 * archive (not necessarily .zip file extension)
 	 * @param archiveFile The file to save the data
 	 * @throws IOException Thrown if there was a problem writing to the file.
 	 */
-	public abstract void save(File archiveFile) throws IOException;
+	public abstract void save(Path archiveFile) throws IOException;
 	
 	/**
 	 * IMPLEMENTATIONS ARE NOT REQUIRED TO SAVE CHANGES ON CLOSE! This method 
@@ -65,191 +55,83 @@ public abstract class ArchiveResourceManager implements Closeable{
 	 */
 	@Override
 	public abstract void close() throws IOException;
-	/**
-	 * Gets a stream to read data from a file (or other data container) in the 
-	 * data store archive.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired resource.
-	 * @return An input stream, or null if the resource in question does not 
-	 * exist (see {@link #exists(java.nio.file.Path) exists(...)});
-	 * @throws IOException Thrown if there was a problem opening the source of 
-	 * the input stream
-	 */
-	protected abstract InputStream getInputStream(Path locatorPath) throws IOException;
-	/**
-	 * Gets a stream to write data to a file (or other data container) in the 
-	 * data store archive.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired resource.
-	 * @return An output stream to the given resource path
-	 * @throws IOException Thrown if there was a problem opening the source of 
-	 * the input stream
-	 */
-	protected abstract OutputStream getOutputStream(Path locatorPath) throws IOException;
-	/**
-	 * Checks whether a resource exists.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired resource.
-	 * @return <code>true</code> if the resource exists (can be read via input 
-	 * stream or other method), <code>false</code> otherwise.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public abstract boolean exists(Path locatorPath) throws IOException;
-	/**
-	 * Gets a value from a properties file stored in the archive.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @param defaultValue The value to set if the given property is absent
-	 * @return The stored property, or the default value if it is absent.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public abstract String getProperty(Path locatorPath, String propertyName, String defaultValue) throws IOException;
-	/**
-	 * Gets a value from a properties file stored in the archive.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @param newValue The value to set
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public abstract void setProperty(Path locatorPath, String propertyName, String newValue) throws IOException;
-	/**
-	 * Checks whether a property exists (see {@link #getProperty(java.nio.file.Path, java.lang.String, java.lang.String) getProperty(...)}
-	 * and {@link #setProperty(java.nio.file.Path, java.lang.String, java.lang.String) setProperty(...)}
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @return <code>true</code> if the indicated property has been set to some 
-	 * value, <code>false</code> otherwise.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public abstract boolean hasProperty(Path locatorPath, String propertyName) throws IOException;
-	/**
-	 * Like {@link #getProperty(java.nio.file.Path, java.lang.String, java.lang.String) getProperty(...)},
-	 * but with automatic number parsing.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @param defaultValue The value to set if the given property is absent
-	 * @return The stored property, or the default value if it is absent.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 * @throws NumberFormatException Thrown if the property stored is not a valid number.
-	 */
-	public Number getNumber(Path locatorPath, String propertyName, Number defaultValue) throws IOException, NumberFormatException{
-		ioLock.readLock().lock();
-		try{
-			String text = getProperty(locatorPath,propertyName,defaultValue.toString());
-			if(text.equals("inf")){
-				return Double.POSITIVE_INFINITY;
-			} else if(text.equals("-inf")){
-				return Double.NEGATIVE_INFINITY;
-			} else if(text.equals("nan") || text.equals("NaN")){
-				return Double.NaN;
-			} else if(text.contains(".")){
-				return Double.parseDouble(text);
-			} else {
-				return Long.parseLong(text);
-			}
-		}finally{
-			ioLock.readLock().unlock();
-		}
-	}
-	/**
-	 * Like {@link #setProperty(java.nio.file.Path, java.lang.String, java.lang.String) setProperty(...)},
-	 * but with automatic number parsing.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @param newValue The value to set
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public void setNumber(Path locatorPath, String propertyName, Number newValue) throws IOException{
-		ioLock.writeLock().lock();
-		try{
-			setProperty(locatorPath,propertyName,newValue.toString());
-		}finally{
-			ioLock.writeLock().unlock();
-		}
-	}
-	/**
-	 * Like {@link #hasProperty(java.nio.file.Path, java.lang.String) hasProperty(...)},
-	 * but with automatic number parsing.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param propertyName The property to get/set
-	 * @return <code>true</code> if the indicated property has been set to some 
-	 * value, <code>false</code> otherwise.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public boolean hasNumber(Path locatorPath, String propertyName) throws IOException{
-		ioLock.readLock().lock();
-		try{
-			return hasProperty(locatorPath,propertyName);
-		}finally{
-			ioLock.readLock().unlock();
-		}
-	}
-	/**
-	 * Gets a stored image.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param format The image format to use for storage, e.g. "png" or "jpg" or "gif"
-	 * @param defaultValue A function to determine what to store and return if 
-	 * the image doe not already exist. Note that implementations must not store 
-	 * anything if this function is null ore returns a null.
-	 * @return The image stored at the given location.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public abstract BufferedImage getImage(Path locatorPath, String format, java.util.function.Supplier<BufferedImage> defaultValue) throws IOException;
-	/**
-	 * Gets a stored image.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param format The image format to use for storage, e.g. "png" or "jpg" or "gif"
-	 * @return The image stored at the given location, or null if no such image exists.
-	 * @throws IOException Thrown if there was a problem opening the location path
-	 */
-	public BufferedImage getImage(Path locatorPath, String format) throws IOException{
-		return getImage(locatorPath,format,()->{return null;});
-	}
-	/**
-	 * Stores an image
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param format The image format to use for storage, e.g. "png" or "jpg" or "gif"
-	 * @param newValue The image to store
-	 * @throws IOException Thrown if there was a problem accessing the location path
-	 */
-	public abstract void setImage(Path locatorPath, String format, BufferedImage newValue) throws IOException;
-	/**
-	 * Loads data from a map stored as a JSON object in the provided location.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param map A map (usually a HashMap instance) that uses strings as keys. 
-	 * The values be also be maps with string keys, forming a nested map data tree.
-	 * @throws IOException Thrown if there was a problem accessing the location path
-	 */
-	public void readDataMap(Path locatorPath, Map<String,Object> map) throws IOException{
-		JsonReader jsonReader = Json.createReader(getInputStream(locatorPath));
-		Map<String, Object> constructedMap = JSONConverter.constructMap(jsonReader.readObject());
-		jsonReader.close();
-		map.putAll(constructedMap);
-	}
-	/**
-	 * Stores a nested map as a JSON data structure in the provided location.
-	 * @param locatorPath The locator (path within the zip archive) of the 
-	 * desired properties file.
-	 * @param map A map (usually a HashMap instance) that uses strings as keys. 
-	 * The values be also be maps with string keys, forming a nested map data tree.
-	 * @throws IOException Thrown if there was a problem accessing the location path
-	 * @throws IllegalArgumentException Thrown if the map contains classes that 
-	 * are not supported in JSON storage.
-	 */
-	public void writeDataMap(Path locatorPath, Map<String,Object> map) throws IOException, IllegalArgumentException{
-		JsonWriter jsonWriter = Json.createWriter(getOutputStream(locatorPath));
-		jsonWriter.writeObject(JSONConverter.constructJSONObject(map));
-		jsonWriter.close();
-	}
 	
+	/**
+	 * Checks whether a given resource exists in the archive
+	 * @param locator
+	 * @return 
+	 */
+	public abstract boolean exists(Path locator);
+	/**
+	 * Removes a specific resource from the archive.
+	 * @param locator The identifier path to the image. It should have an image 
+	 * format suffix.
+	 * @return Returns true if the resource being deleted existed, false if 
+	 * the resource did not already exist (and therefore was not deleted).
+	 * @throws IOException Thrown if there was an error while deleting the 
+	 * resource file.
+	 */
+	public abstract boolean delete(Path locator) throws IOException;
+
+	/**
+	 * Gets an image from the archive, if it exists. If it doesn't exist, and 
+	 * the Supplier function <code>doIfNotExists</code> is not null, then the
+	 * Supplier function will be invoked to create a new image, which will be 
+	 * added to the archive and then returned (unless the Supplier returns 
+	 * null).
+	 * @param locator The identifier path to the image. It should have an image 
+	 * format suffix.
+	 * @param doIfNotExists A Supplier function to generate an image if the 
+	 * requested image does not already exist (can be null).
+	 * @return Returns the existing or created image, or null if the image does 
+	 * not exist and the Supplier function <code>doIfNotExists</code> is null or 
+	 * returns null.
+	 * @throws IllegalStateException Thrown if the archive is closed.
+	 * @throws IOException Thrown if there was an error reading or writing the 
+	 * archive file.
+	 */
+	public abstract BufferedImage getImage(Path locator, Supplier<BufferedImage> doIfNotExists) throws IOException;
+	/**
+	 * Gets a set of properties from the archive, if it exists. If it doesn't 
+	 * exist, and the map <code>defaultValues</code> is not null, then the
+	 * default values will be saved and then returned
+	 * @param locator The identifier path to the properties. 
+	 * @param defaultValues The default values to use/store if there are no values 
+	 * @return 
+	 * @throws IllegalStateException Thrown if the archive is closed.
+	 * @throws IOException Thrown if there was an error reading or writing the 
+	 * archive file.
+	 */
+	public abstract Map<String,String> getProperties(Path locator, Map<String,String> defaultValues) throws IOException;
+	/**
+	 * Gets an XML document from the archive, if it exists. If it doesn't exist, 
+	 * and the Supplier function <code>doIfNotExists</code> is not null, then 
+	 * the Supplier function will be invoked to create a new document, which 
+	 * will be added to the archive and then returned (unless the Supplier 
+	 * returns null).
+	 * @param locator The identifier path to the XML document
+	 * @param doIfNotExists A Supplier function to generate a document if the 
+	 * requested document does not already exist (can be null).
+	 * @return Returns the existing or created XML DOM, or null if the document 
+	 * does not exist and the Supplier function <code>doIfNotExists</code> is 
+	 * null or returns null.
+	 * @throws IllegalStateException Thrown if the archive is closed.
+	 * @throws IOException Thrown if there was an error reading or writing the 
+	 * archive file.
+	 */
+	public abstract Document getXML(Path locator, Supplier<org.w3c.dom.Document> doIfNotExists) throws IOException ;
+	/**
+	 * Lists all of the resources that start with the given locator prefix.
+	 * @param locatorPrefix parent tree path (i.e. directory path) to scan for 
+	 * resources
+	 * @param includeDirectories If true, include directory names in the output. 
+	 * If false, include only resources (files).
+	 * @param recursive If true, then follow sub-directories and add their 
+	 * contents to the list as well.
+	 * @return A collection of resources that begin with the specified locator 
+	 * prefix.
+	 * @throws java.io.IOException Thrown if there was an error while reading 
+	 * the archive
+	 */
+	public abstract java.util.List<Path> listSubResources(Path locatorPrefix, boolean includeDirectories, boolean recursive) throws IOException;
 }

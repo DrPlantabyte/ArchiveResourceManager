@@ -58,10 +58,18 @@ public abstract class ArchiveResourceManager implements Closeable {
 	
 	/**
 	 * Checks whether a given resource exists in the archive
-	 * @param locator
-	 * @return 
+	 * @param locator The identifier path to the resource.
+	 * @return True if the locator points to an existing resource, false 
+	 * otherwise.
 	 */
 	public abstract boolean exists(Path locator);
+	/**
+	 * Checks whether a given resource locator points to a directory
+	 * @param locator The identifier path to the resource.
+	 * @return True if the locator points to an existing resource that is a 
+	 * directory, false otherwise.
+	 */
+	public abstract boolean isDirectory(Path locator);
 	/**
 	 * Removes a specific resource from the archive.
 	 * @param locator The identifier path to the image. It should have an image 
@@ -128,10 +136,22 @@ public abstract class ArchiveResourceManager implements Closeable {
 	 * If false, include only resources (files).
 	 * @param recursive If true, then follow sub-directories and add their 
 	 * contents to the list as well.
-	 * @return A collection of resources that begin with the specified locator 
-	 * prefix.
+	 * @return A collection of existing  resources that begin with the specified 
+	 * locator prefix.
 	 * @throws java.io.IOException Thrown if there was an error while reading 
 	 * the archive
 	 */
 	public abstract java.util.List<Path> listSubResources(Path locatorPrefix, boolean includeDirectories, boolean recursive) throws IOException;
+	/**
+	 * Lists all of the directories that start with the given locator prefix.
+	 * @param locatorPrefix parent tree path (i.e. directory path) to scan for 
+	 * resources
+	 * @param recursive If true, then follow sub-directories and add their 
+	 * contents to the list as well.
+	 * @return A collection of existing directories that begin with the 
+	 * specified locator prefix.
+	 * @throws java.io.IOException Thrown if there was an error while reading 
+	 * the archive
+	 */
+	public abstract java.util.List<Path> listSubDirectories(Path locatorPrefix, boolean recursive) throws IOException;
 }

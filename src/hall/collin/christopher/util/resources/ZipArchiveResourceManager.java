@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -56,6 +57,14 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
+/**
+ * 
+ * </p><p>
+ * All public methods in this class are thread-safe
+ * </p>
+ * 
+ * @author CCHall <a href="mailto:hallch20@msu.edu">hallch20@msu.edu</a>
+ */
 public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	
 	private static final Charset UTF8 = Charset.forName("UTF-8");
@@ -95,11 +104,20 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 		ZipArchiveResourceManager m = new ZipArchiveResourceManager(unpackDir);
 		return m;
 	}
-	
-	private Path toFilePath(Path locator){
+	/**
+	 * Not thread-safe!
+	 * @param locator relative filepath within the archive
+	 * @return actual filepath on computer
+	 */
+	protected final Path toFilePath(Path locator){
 		return Paths.get(dir.toString(), locator.toString());
 	}
-	private Path fileToLocator(Path filePath){
+	/**
+	 * Not thread-safe!
+	 * @param filePath actual filepath on computer
+	 * @return relative filepath within the archive
+	 */
+	protected final Path fileToLocator(Path filePath){
 		return dir.relativize(filePath);
 	}
 	/**
@@ -113,6 +131,22 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 		iolock.lock();
 		try{
 			return Files.exists(toFilePath(locator));
+		}finally{
+			iolock.unlock();
+		}
+	}
+	/**
+	 * Checks whether a given resource locator points to a directory
+	 * @param locator The identifier path to the resource.
+	 * @return True if the locator points to an existing resource that is a 
+	 * directory, false otherwise.
+	 */
+	@Override
+	public boolean isDirectory(Path locator){
+		checkValid();
+		iolock.lock();
+		try{
+			return Files.isDirectory(toFilePath(locator));
 		}finally{
 			iolock.unlock();
 		}
@@ -131,6 +165,7 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	 */
 	@Override
 	public java.util.List<Path> listSubResources(Path locatorPrefix, boolean includeDirectories, boolean recursive) throws IOException{
+		checkValid();
 		final java.util.List<Path> list = new java.util.LinkedList<>();
 		iolock.lock();
 		try{
@@ -152,6 +187,25 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 		}finally{
 			iolock.unlock();
 		}
+	}
+	
+	/**
+	 * Lists all of the directories that start with the given locator prefix.
+	 * @param locatorPrefix parent tree path (i.e. directory path) to scan for 
+	 * resources
+	 * @param recursive If true, then follow sub-directories and add their 
+	 * contents to the list as well.
+	 * @return A collection of existing directories that begin with the 
+	 * specified locator prefix.
+	 * @throws java.io.IOException Thrown if there was an error while reading 
+	 * the archive
+	 */
+	@Override
+	public java.util.List<Path> listSubDirectories(Path locatorPrefix, boolean recursive) throws IOException{
+		checkValid();
+		return listSubResources(locatorPrefix,true,recursive).stream()
+				.filter((Path p)->Files.isDirectory(toFilePath(p)))
+				.collect(Collectors.toList());
 	}
 	/**
 	 * Removes a specific resource from the archive.
@@ -337,8 +391,9 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	}
 	/**
 	 * Throws IllegalStateException if called after close().
+	 * All public methods should invoke this method before doing anything else
 	 */
-	private void checkValid(){
+	protected final void checkValid(){
 		if(closed.get()){
 			throw new IllegalStateException(this.getClass().getSimpleName()+" is cloReadWriteLock Cannot get or set resourceReentrantReadWriteLocks on closed instance");
 		}
@@ -351,6 +406,7 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	@Override public void close() throws IOException{
 		iolock.lock();
 		try{
+			checkValid();
 			closed.set(true);
 			deleteAll(dir.toFile());
 		}finally{
@@ -365,6 +421,7 @@ public class ZipArchiveResourceManager extends ArchiveResourceManager{
 	 */
 	@Override
 	public void save(Path destinationFile) throws IOException {
+		checkValid();
 		iolock.lock();
 		try{
 			ZipUtils.createZipArchive(dir,destinationFile);
